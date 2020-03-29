@@ -1,6 +1,8 @@
 SYS_EXIT        equ 60
 SYS_READ        equ 0
 SYS_WRITE       equ 1
+STD_IN          equ 0
+STD_OUT         equ 1
 MIN_CHAR        equ 49 
 MAX_CHAR        equ 90
 MAX_ARG_LENGTH  equ 42
@@ -16,9 +18,9 @@ Tperm: resb 8                   ; Address of T permutation on stack
 Linv:  resb MAX_ARG_LENGTH      ; Inversion of L permutation
 Rinv:  resb MAX_ARG_LENGTH      ; Inversion of R permutation
 buff:  resb 4097                ; Buffer for input-output
-Lbegin: resb 1
-Rbegin: resb 1
 
+
+; TODO: r12 nie można używać, albo trzeba przywrócić
 
 section .text
 
@@ -38,15 +40,16 @@ check_single_char:
     jg      fail
     test    rdi, rdi                ; czy trzeba liczyć permutacje
     jz      next_char               ; jesli nie, to nastepna literka
-    lea     rbx, [rdi + rax - MIN_CHAR] ; zaladuj adres na docelowej permutacji
-    cmp     BYTE[rbx], 0
+    lea     rdx, [rdi + rax - MIN_CHAR] ; zaladuj adres na docelowej permutacji
+    cmp     BYTE[rdx], 0
     jne     fail
-    mov     [rbx], eax
+    mov     [rdx], eax
 next_char:
     inc     rcx                    ; licznik++
     jmp     check_chars_loop
 
-encode_buffer:
+add_perm_sub:                       ; Rotejt, permutuj, cofnij. rsi - source(tu podmieniamy literke), rdi-permutacja do zaaplikowania,  
+    
     ret
 
 _start:
@@ -88,11 +91,11 @@ check_key:
     xor     rdi, rdi
     mov     r8, 2                   ; ostatni argument ma tylko dwie literki
     call    process_single_arg
-    movzx   rax, BYTE[rsi]
-    mov     [Lbegin], al
+    xor     r10, r10               
+    mov     r10b, BYTE[rsi]         ; L bembenek
     inc     rsi
-    mov     al, BYTE[rsi]
-    mov     [Rbegin], al
+    xor     r11, r11
+    mov     r11b, BYTE[rsi]
 read_input:
     xor     eax, eax
     xor     edi, edi
@@ -105,9 +108,17 @@ read_input:
     mov     rdi, 0
     mov     r8, r12
     call    process_single_arg
-    call    encode_buffer
-    mov     eax, 1
-    xor     edi, edi
+    xor     rcx, rcx                ; wyzeruj licznik
+encode_buffer:
+    lea     rsi, [buff + rcx]
+    mov     rdi, [Rperm]
+    call    add_perm_sub
+    inc     rcx
+    cmp     rcx, r12                ; jesli przejrzelismy cale wejscie to print
+    jl      encode_buffer
+print_output:
+    mov     eax, SYS_WRITE
+    mov     edi, STD_OUT
     mov     rsi, buff
     mov     rdx, r12
     syscall
