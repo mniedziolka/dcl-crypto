@@ -100,6 +100,11 @@ read_input:
     mov     edx, BUFF_SIZE
     syscall
     mov     r12, rax
+    mov     rsi, buff
+    mov     BYTE[buff + r12], 0
+    mov     rdi, 0
+    mov     r8, r12
+    call    process_single_arg
     call    encode_buffer
     mov     eax, 1
     xor     edi, edi
