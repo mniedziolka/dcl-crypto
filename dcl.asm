@@ -14,12 +14,12 @@ global _start
 
 section .bss
 
-Lperm: resb 8                   ; Address of L permutation on stack
-Rperm: resb 8                   ; Address of R permutation on stack
-Tperm: resb 8                   ; Address of T permutation on stack
-Linv:  resb MAX_ARG_LENGTH      ; Inversion of L permutation
-Rinv:  resb MAX_ARG_LENGTH      ; Inversion of R permutation
-buff:  resb BUFF_SIZE + 1           ; Buffer for input-output
+Lperm: resb 8                                       ; Address of L permutation on stack
+Rperm: resb 8                                       ; Address of R permutation on stack
+Tperm: resb 8                                       ; Address of T permutation on stack
+Linv:  resb MAX_ARG_LENGTH                          ; Inversion of L permutation
+Rinv:  resb MAX_ARG_LENGTH                          ; Inversion of R permutation
+buff:  resb BUFF_SIZE + 1                           ; Buffer for input-output
 
 
 section .text
@@ -31,24 +31,33 @@ section .text
     cmovg       esi, ebx
 %endmacro
 
-; r12 - bemben R ; r10 - bemben L
+; Makro do obracania bebenkow. Uruchamiane przed kazdym zaszyfrowaniem litery.
+; Wejscie: r10 - pozycja bebenka L, r12 - pozycja bebenka R;
+; Uzywane: rax, rbx, r10, r12; 
 %macro apply_rot 0
-    inc         r12d
-    cmp         r12d, POS_MAX                       ; czy sie przekrecilo
-    jl          %%in_range
-    xor         r12d, r12d                          
-%%in_range:
-    cmp         r12d, POS_L
-    je          %%rot_L    
+    xor         eax, eax                            ; Zerujemy eax, zeby moc zerowac rejestry cmov.
+
+    inc         r12d                                ; Przekrec bebenek R.
+
+    cmp         r12d, POS_MAX                       ; Modulo POS_MAX.
+    cmovge      r12d, eax                    
+
+    mov         ebx, 1                              ; Wrzucimy na eax, jesli znajdzie sie w obrotowej.
+
+    cmp         r12d, POS_L                         ; Sprawdzamy czy bebenek R jest w pozycji obrotowej.
+    cmove       eax, ebx  
     cmp         r12d, POS_R
-    je          %%rot_L
+    cmove       eax, ebx
     cmp         r12d, POS_T
-    jne         %%skip
-%%rot_L:
-    inc         r10d
-    cmp         r10d, POS_MAX
-    jl          %%skip
-    xor         r10d, r10d
+    cmove       eax, ebx
+
+    cmp         eax, 0                              ; Jesli eax jest zerem to zaden z warunkow nie zaszedl.
+    je          %%skip                              ; Nie zmieniaj stanu L.
+
+    inc         r10d                                ; Przekrec bebenek L.
+    xor         eax, eax
+    cmp         r10d, POS_MAX                       ; Modulo POS_MAX.
+    cmovge      r10d, eax                           
 %%skip:
 %endmacro
 
@@ -63,7 +72,7 @@ section .text
     modulo
 %endmacro
 
-process_single_arg:                ; Sparsuj i zinvertuj jeden argument. rsi - source, rdi - target, r8 - ile liter ma byc
+process_single_str:                ; Sparsuj i zinvertuj jeden argument. rsi - source, rdi - target, r8 - ile liter ma byc
     xor         ecx, ecx
 .check_chars_loop:
     cmp         ecx, r8d                 ; całe słowo wczytane, teraz musi być 0
@@ -97,17 +106,17 @@ _start:
     mov         rsi, [rbp]
     mov         [Lperm], rsi             ; zapisz adres permutacji L
     mov         rdi, Linv
-    call        process_single_arg
+    call        process_single_str
     add         rbp, 8
     mov         rsi, [rbp]
     mov         [Rperm], rsi             ; zapisz adres permutacji R
     mov         rdi, Rinv
-    call        process_single_arg
+    call        process_single_str
     add         rbp, 8
     mov         rsi, [rbp]
     mov         [Tperm], rsi             ; zapisz adres permutacji T
     xor         edi, edi               ; wyczysc rdi, bo nie potrzebujemy inwersji T
-    call        process_single_arg
+    call        process_single_str
     xor         ecx, ecx                ; licznik
 .check_T_permutation:                ; iterujemy sie po T i patrzymy czy poprawne zlozenie
     cmp         ecx, MAX_ARG_LENGTH
@@ -128,7 +137,7 @@ _start:
     mov         rsi, [rbp]
     xor         edi, edi
     mov         r8d, 2                   ; ostatni argument ma tylko dwie literki
-    call        process_single_arg               
+    call        process_single_str              
     movzx       r10d, byte[rsi]         ; L bembenek
     sub         r10d, MIN_CHAR
     inc         rsi
@@ -148,7 +157,7 @@ _start:
     mov         byte[buff + r11], 0
     mov         edi, 0
     mov         r8d, r11d
-    call        process_single_arg
+    call        process_single_str
     xor         ecx, ecx                ; wyzeruj licznik
 .encode_buffer:
     apply_rot
