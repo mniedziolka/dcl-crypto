@@ -33,10 +33,11 @@ section .text
 %%skip:
 %endmacro
 
+; r12 - bemben R ; r10 - bemben L
 %macro apply_rot 0
     inc     r12
     cmp     r12, POS_MAX                       ; czy sie przekrecilo
-    jle     %%in_range
+    jl     %%in_range
     xor     r12, r12                           
 %%in_range:
     cmp     r12, POS_L
@@ -48,7 +49,7 @@ section .text
 %%rot_L:
     inc     r10
     cmp     r10, POS_MAX
-    jle     %%skip
+    jl     %%skip
     xor     r10, r10
 %%skip:
 %endmacro
