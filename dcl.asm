@@ -3,13 +3,13 @@ SYS_READ        equ 0
 SYS_WRITE       equ 1
 STD_IN          equ 0
 STD_OUT         equ 1
-MIN_CHAR        equ 49 
-MAX_CHAR        equ 90
+MIN_CHAR        equ '1' 
+MAX_CHAR        equ 'Z'
 MAX_ARG_LENGTH  equ 42
 BUFF_SIZE       equ 4096
-POS_L           equ 76 - MIN_CHAR
-POS_R           equ 82 - MIN_CHAR
-POS_T           equ 84 - MIN_CHAR
+POS_L           equ 'L' - MIN_CHAR
+POS_R           equ 'R' - MIN_CHAR
+POS_T           equ 'T' - MIN_CHAR
 POS_MAX         equ 42
 
 global _start
@@ -27,23 +27,23 @@ buff:  resb 4097                ; Buffer for input-output
 section .text
 
 %macro modulo 0
-    cmp     rax, MAX_CHAR
+    cmp     eax, MAX_CHAR
     jle     %%skip    
-    sub     rax, POS_MAX
+    sub     eax, POS_MAX
 %%skip:
 %endmacro
 
 %macro apply_rot 0
-    inc     r11
-    cmp     r11, POS_MAX                       ; czy sie przekrecilo
+    inc     r12
+    cmp     r12, POS_MAX                       ; czy sie przekrecilo
     jle     %%in_range
-    xor     r11, r11                           
+    xor     r12, r12                           
 %%in_range:
-    cmp     r11, POS_L
+    cmp     r12, POS_L
     je      %%rot_L    
-    cmp     r11, POS_R
+    cmp     r12, POS_R
     je      %%rot_L
-    cmp     r11, POS_T
+    cmp     r12, POS_T
     jne     %%skip
 %%rot_L:
     inc     r10
@@ -72,19 +72,20 @@ check_single_char:
     lea     rdx, [rdi + rax - MIN_CHAR] ; zaladuj adres na docelowej permutacji
     cmp     byte[rdx], 0
     jne     fail
-    mov     [rdx], eax
+    mov     eax, ecx
+    add     eax, MIN_CHAR
+    mov     byte[rdx], al
 next_char:
     inc     rcx                    ; licznik++
     jmp     check_chars_loop
 
 add_perm_sub:                       ; Rotejt, permutuj, cofnij. rsi - source(tu podmieniamy literke), rdi-permutacja do zaaplikowania, rdx - przesun i wroc o tyle
-    xor     rax, rax
-    mov     al, byte[rsi]
+    movzx   rax, byte[rsi]
     add     eax, edx
     modulo
     sub     eax, MIN_CHAR
     movzx   rax, byte[rdi + rax]
-    add     eax, MIN_CHAR
+    add     eax, POS_MAX
     sub     eax, edx
     modulo
     mov     byte[rsi], al
@@ -132,22 +133,26 @@ check_key:
     call    process_single_arg
     xor     r10, r10               
     mov     r10b, byte[rsi]         ; L bembenek
-    sub     r10b, MIN_CHAR
+    sub     r10, MIN_CHAR
     inc     rsi
-    xor     r11, r11
-    mov     r11b, byte[rsi]
-    sub     r11b, MIN_CHAR
+    xor     r12, r12
+check_r11:
+    mov     r12b, byte[rsi]
+    sub     r12, MIN_CHAR
+    inc     rsi
+    cmp     byte[rsi], 0            ; sprawdzamy czy klucz szyfrowania nie jest zbyt dlugi
+    jne     fail
 read_input:
     xor     eax, eax
     xor     edi, edi
     mov     rsi, buff
     mov     edx, BUFF_SIZE
     syscall
-    mov     r12, rax
+    mov     r11, rax
     mov     rsi, buff
-    mov     byte[buff + r12], 0
+    mov     byte[buff + r11], 0
     mov     rdi, 0
-    mov     r8, r12
+    mov     r8, r11
     call    process_single_arg
     xor     rcx, rcx                ; wyzeruj licznik
 encode_buffer:
@@ -156,7 +161,7 @@ encode_buffer:
     lea     rsi, [buff + rcx]
 
     mov     rdi, [Rperm]
-    mov     rdx, r11
+    mov     rdx, r12
     call    add_perm_sub
 
     mov     rdi, [Lperm]
@@ -172,19 +177,19 @@ encode_buffer:
     call    add_perm_sub
 
     mov     rdi, Rinv
-    mov     rdx, r11
+    mov     rdx, r12
     call    add_perm_sub
 
     inc     rcx
-    cmp     rcx, r12                ; jesli przejrzelismy cale wejscie to print
+    cmp     rcx, r11                ; jesli przejrzelismy cale wejscie to print
     jl      encode_buffer
 print_output:
     mov     eax, SYS_WRITE
     mov     edi, STD_OUT
     mov     rsi, buff
-    mov     rdx, r12
+    mov     rdx, r11
     syscall
-    cmp     r12, BUFF_SIZE
+    cmp     rdx, BUFF_SIZE
     jge     read_input
     xor     rdi, rdi               ; wyczysc edi, exit z 0
     jmp     exit
